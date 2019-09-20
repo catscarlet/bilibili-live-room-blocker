@@ -11,7 +11,7 @@
 // @description:zh-CN   bilibili 直播间屏蔽工具，可以把不喜欢的直播间在房间列表页屏蔽掉
 // @description:zh-TW   bilibili 直播間屏蔽工具，可以把不喜歡的直播間在房間列表頁屏蔽掉
 // @icon                https://www.bilibili.com/favicon.ico
-// @version             0.0.1
+// @version             0.0.2
 // @author              catscarlet
 // @license             MIT License
 // @match               *://live.bilibili.com/p/*
@@ -76,25 +76,31 @@ GM_addStyle(`
     }
 
     function init() {
-        let list = document.getElementsByClassName('list')[0].children;
-        for (let item of list) {
-            let flag = item.getAttribute('room');
-            if (flag) {
-                continue;
-            }
-            let str = item.children[0].href;
-            let origin = item.children[0].origin;
+        if (!document.getElementsByClassName('list')[0]) {
+            console.log('list has no child, setTimeout');
+            window.setTimeout(() => {
+                init();
+            }, 1000);
+        } else {
+            let list = document.getElementsByClassName('list')[0].children;
+            for (let item of list) {
+                let flag = item.getAttribute('room');
+                if (flag) {
+                    continue;
+                }
+                let str = item.children[0].href;
+                let origin = item.children[0].origin;
 
-            if (str.startsWith(origin + '/')) {
-                let roomId = str.slice(26);
-                item.setAttribute('room', roomId);
+                if (str.startsWith(origin + '/')) {
+                    let roomId = str.slice(26);
+                    item.setAttribute('room', roomId);
 
-                let p = document.createElement('p');
-                p.className = 'bilibili-live-room-block';
-                p.innerHTML = `
-                <a class="room-handler" room="${roomId}">我不喜欢这个直播间</a>
+                    let p = document.createElement('p');
+                    p.className = 'bilibili-live-room-block';
+                    p.innerHTML = `
+                <a class="room-handler" room="${roomId}">我不喜欢${roomId}这个直播间</a>
                 <br>
-                <input id="room-${roomId}-blocker-input" class="room-blocker-input" type="text" title="可自定义理由，或点击下面快速选择" disabled>
+                <input id="room-${roomId}-blocker-input" room="${roomId}" class="room-blocker-input" type="text" title="可自定义理由，或点击下面快速选择" disabled>
 
                 <div id="room-${roomId}-blocker-handler" style="display:inline; visibility: hidden;">
                     <a class="room-choice-submit" room="${roomId}">确定</a>
@@ -108,19 +114,20 @@ GM_addStyle(`
                 </div>
                 `;
 
-                item.appendChild(p);
+                    item.appendChild(p);
 
-                getReason(roomId).then((resolve) => {
-                    if (resolve !== false) {
+                    getReason(roomId).then((resolve) => {
+                        if (resolve !== false) {
 
-                        let inputer = document.getElementById('room-' + roomId + '-blocker-input');
-                        let value = inputer.value;
+                            let inputer = document.getElementById('room-' + roomId + '-blocker-input');
+                            let value = inputer.value;
 
-                        inputer.value = resolve;
+                            inputer.value = resolve;
 
-                        blockRoomById(roomId);
-                    }
-                });
+                            blockRoomById(roomId);
+                        }
+                    });
+                }
             }
         }
 
@@ -136,18 +143,23 @@ GM_addStyle(`
 
     function initHandler() {
         let handlers = document.getElementsByClassName('room-handler');
-        for (let handler of handlers) {
-            handler.onclick = roomOnClick;
+        for (let handler1 of handlers) {
+            handler1.onclick = roomOnClick;
         }
 
         let choiceHandlers = document.getElementsByClassName('room-choice-handler');
-        for (let handler of choiceHandlers) {
-            handler.onclick = choiceOnClick;
+        for (let handler2 of choiceHandlers) {
+            handler2.onclick = choiceOnClick;
         }
 
         let submitHandlers = document.getElementsByClassName('room-choice-submit');
-        for (let handler of submitHandlers) {
-            handler.onclick = submitOnClick;
+        for (let handler3 of submitHandlers) {
+            handler3.onclick = submitOnClick;
+        }
+
+        let inputHandlers = document.getElementsByClassName('room-blocker-input');
+        for (let handler4 of inputHandlers) {
+            handler4.addEventListener('keyup', inputOnEvent);
         }
     };
 
@@ -181,11 +193,25 @@ GM_addStyle(`
         inputer.value = value;
     }
 
+    function inputOnEvent(e) {
+        console.log(e);
+        if (e.keyCode === 13) {
+            let target = e.target;
+            let roomId = target.getAttribute('room');
+            let reason = document.getElementById('room-' + roomId + '-blocker-input').value;
+            submit(roomId, reason);
+        }
+    }
+
     function submitOnClick(e) {
         let target = e.target;
         let roomId = target.getAttribute('room');
         let reason = document.getElementById('room-' + roomId + '-blocker-input').value;
 
+        submit(roomId, reason);
+    }
+
+    function submit(roomId, reason) {
         if (reason != '') {
             blockRoomById(roomId);
             setReason(roomId, reason);
@@ -203,8 +229,8 @@ GM_addStyle(`
     function blockRoomById(roomId) {
         let li = document.querySelector('li[room=\'' + roomId + '\']');
         let a = li.children[0];
-        a.removeAttribute('href');
-        a.style.opacity = 0.1;
+        //a.removeAttribute('href');
+        //a.style.opacity = 0.1;
     }
 
     function freeRoomById(roomId) {
